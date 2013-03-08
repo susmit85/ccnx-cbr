@@ -20,22 +20,55 @@
 
 
 int construct_trace_response(struct ccn *h, struct ccn_charbuf *data, 
-        const unsigned char *interest_msg, const struct ccn_parsed_interest *pi, char *mymessage, int size)
+        const unsigned char *interest_msg, const struct ccn_parsed_interest *pi)
 {
 
     //printf("path:construct trace response");
     //**this function takes the interest, signs the content and returns to 
     //upcall for further handling
+            
+    char *mymessage;
+    
 
     //copy the incoming interest name in ccn charbuf
     struct ccn_charbuf *name = ccn_charbuf_create();
     struct ccn_signing_params sp = CCN_SIGNING_PARAMS_INIT;
+
     int res;
-    printf("Received interest, name length: %d\n", size);
+
     res = ccn_charbuf_append(name, interest_msg + pi->offset[CCN_PI_B_Name],
             pi->offset[CCN_PI_E_Name] - pi->offset[CCN_PI_B_Name]);
 
-//    printf("%s\n", ccn_charbuf_as_string(name));
+    struct ccn_charbuf *uri = ccn_charbuf_create();
+    ccn_uri_append(uri, name->buf, name->length, 1);
+
+    char *incoming_uri = ccn_charbuf_as_string(uri);
+    char *reply_size_str = strrchr(incoming_uri, '/');
+
+
+
+    if (reply_size_str == NULL)
+    {
+    printf ("Cound not get reply size \n");
+    exit(1);       
+    }
+//    printf("uri = %s reply size %s\n", ccn_charbuf_as_string(uri), reply_size);     */           
+    int reply_size_int;
+    
+    sscanf(reply_size_str+1, "%d", &reply_size_int);
+    int i =0;
+    
+    
+    mymessage = (char *) malloc (sizeof(char) * reply_size_int + 1);
+    //is there a better way?
+    //subtract 378 from
+    for (i = 0; i< reply_size_int; i++)
+    {
+        mymessage[i] = 'a';
+    }
+    mymessage[i] = '\0';
+            
+    printf("uri = %s Size %d mymessage %d\n", ccn_charbuf_as_string(uri), reply_size_int, strlen(mymessage));     
     if(res == -1)
     {
         fprintf(stderr, "Can not copy interest name to buffer\n");
@@ -43,7 +76,7 @@ int construct_trace_response(struct ccn *h, struct ccn_charbuf *data,
     }
 
     //sign the content, check if keystore exsists
-    res = ccn_sign_content(h, data, name, &sp, 	mymessage, size);
+    res = ccn_sign_content(h, data, name, &sp, 	mymessage, reply_size_int);
 
     if(res == -1)
     {
@@ -66,16 +99,16 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
     //this is the callback function, all interest matching ccnx:/trace
     //will come here, handle them as appropriate
 
-    int res = 0;
-    
+    int res;
+
+   
     //store the incoming interest name
     struct ccn_charbuf *data = ccn_charbuf_create();
 
     //check for null, length of incoming interest name   
-    //size_t name_length = info->pi->offset[CCN_PI_E_Name] - info->pi->offset[CCN_PI_B_Name];
 
     //define answer
-    char *MYMESSAGE="Hello World";
+   // char *MYMESSAGE="Hello World";
 
     
 
@@ -87,7 +120,7 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         break;
 
     case CCN_UPCALL_CONTENT:  
-        printf("received content\n");
+        //don't care
         break;
 
     
@@ -95,7 +128,10 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         //received matching interest
         //get the interest name from incoming packet      
         
-        construct_trace_response(info->h, data, info->interest_ccnb, info->pi, MYMESSAGE, strlen(MYMESSAGE));
+        
+        printf("");
+        
+        construct_trace_response(info->h, data, info->interest_ccnb, info->pi);
         printf("Sending binary content of length: %Zu \n", data->length);
         res = ccn_put(info->h, data->buf, data->length);
         break;
@@ -138,7 +174,7 @@ int main(int argc, char **argv)
     struct ccn_charbuf *prefix = ccn_charbuf_create();
 
     //We are interested in anythin starting with ccnx:/
-    res = ccn_name_from_uri(prefix, "ccnx:/");
+    res = ccn_name_from_uri(prefix, "ccnx:/cbr");
     if (res < 0) 
     {
         fprintf(stderr, "Can not convert name to URI\n");
