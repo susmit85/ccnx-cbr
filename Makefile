@@ -1,6 +1,6 @@
-CC = gcc -I/s/chopin/l/grad/susmit/ccnx-0.6.0/include/ /s/chopin/l/grad/susmit/ccnx-0.6.0/lib/libccn.a
+CC = gcc																		
 CFLAGS = -g -Wall -Wpointer-arith -Wreturn-type -Wstrict-prototypes			 
-LIBS = -lcrypto 														   
+LIBS = -lccn -lcrypto														   
 																				
 PROGRAM_CL = client															 
 PROGRAM_SR = server															 
@@ -21,4 +21,7 @@ server.o:
 																				
 clean:																		  
 	rm -f *.o																   
-	rm -f $(PROGRAM_CL) $(PROGRAM_SR) 
+	rm -f $(PROGRAM_CL) $(PROGRAM_SR)										   
+																				
+~																																											   
+~														
