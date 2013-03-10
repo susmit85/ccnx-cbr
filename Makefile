@@ -2,22 +2,22 @@ CC = gcc
 CFLAGS = -g -Wall -Wpointer-arith -Wreturn-type -Wstrict-prototypes
 LIBS = -lccn -lcrypto -lrt
 
-PROGRAM_CL = client
-PROGRAM_SR = server
+PROGRAM_CL = cbr-client
+PROGRAM_SR = cbr-server
 																				
 all: $(PROGRAM_CL) $(PROGRAM_SR)
 
-client: client.o
-	$(CC) $(CFLAGS) -o client client.o $(LIBS)
+cbr-client: cbr-client.o
+	$(CC) $(CFLAGS) -o cbr-client cbr-client.o $(LIBS)
 
-client.o:
-	$(CC) $(CFLAGS) -c client.c
+cbr-client.o:
+	$(CC) $(CFLAGS) -c cbr-client.c
 
-server: server.o
-	$(CC) $(CFLAGS) -o server server.o $(LIBS)
+cbr-server: cbr-server.o
+	$(CC) $(CFLAGS) -o cbr-server cbr-server.o $(LIBS)
 
-server.o:
-	$(CC) $(CFLAGS) -c server.c							 
+cbr-server.o:
+	$(CC) $(CFLAGS) -c cbr-server.c							 
 
 clean:
 	rm -f *.o

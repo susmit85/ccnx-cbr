@@ -21,21 +21,21 @@ int frequency;
 char *packet_size = NULL;
 
 
-void sig_handler(int s){
+void sig_handler(int s) {
 #ifdef DEBUG
-      printf("Caught signal %d\n",s);
-	  #endif
+    printf("Caught signal %d\n",s);
+#endif
 
 //[ ID] Interval       Transfer     Bandwidth
 //[  3]  0.0-10.0 sec  39.4 GBytes  33.8 Gbits/sec
 
-	printf("\n------------------------------------------------------------\n");
-	printf("Client asked for /cbr/%s\n", packet_size);
-	printf("------------------------------------------------------------\n");
-	printf ("Frequency \t Interests sent \t Received Bytes\n");
-	printf("%d \t\t %d \t\t\t %d\n", frequency, num_interests_sent, total_recv_size);
-	  exit(1); 
-  }
+    printf("\n------------------------------------------------------------\n");
+    printf("Client asked for /cbr/%s\n", packet_size);
+    printf("------------------------------------------------------------\n");
+    printf ("Frequency \t Interests sent \t Received Bytes\n");
+    printf("%d \t\t %d \t\t\t %d\n", frequency, num_interests_sent, total_recv_size);
+    exit(1);
+}
 
 
 enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
@@ -55,7 +55,7 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         return CCN_UPCALL_RESULT_OK;
 
     case CCN_UPCALL_CONTENT:
-		num_interests_sent++;
+        num_interests_sent++;
 
         //get the content from packet
         res = ccn_content_get_value(info->content_ccnb, info->pco->offset[CCN_PCO_E], info->pco, &ptr, &length);
@@ -64,7 +64,7 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
             exit(1);
         }
         printf("Content of %d bytes received \n", info->pco->offset[CCN_PCO_E]);
-		total_recv_size +=  info->pco->offset[CCN_PCO_E];
+        total_recv_size +=  info->pco->offset[CCN_PCO_E];
 
         struct timeval start_time, end_time;
         gettimeofday(&start_time,0);
@@ -74,9 +74,9 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         *rand_str  = '\0';
         new_URI = (char *) calloc(strlen(URI) + 20 + 1, sizeof(char)); //assuming rand() length 20
         sprintf(new_URI, "%s/%d", URI, rand());
-#ifdef DEBUG			
+#ifdef DEBUG
         printf("URI %s \n", new_URI);
-		#endif
+#endif
         URI = new_URI;
 
         //define closure and new charbuf
@@ -158,10 +158,10 @@ int main (int argc, char **argv) {
     }
 
     while((opt = getopt(argc, argv, "h:f:s:")) != -1) {
-		if(strrchr(optarg, '.') != NULL){
-			printf("Error: Arguments must be intergers\n");
-			usage();
-		}
+        if(strrchr(optarg, '.') != NULL) {
+            printf("Error: Arguments must be intergers\n");
+            usage();
+        }
         switch(opt) {
         case 'h':
             usage();
@@ -173,10 +173,10 @@ int main (int argc, char **argv) {
                 fprintf(stderr, "%s: Error - Invalid frequency %s\n\n", CLI_PROGRAM, freq_cmd);
                 usage();
             }
-			interval = 1/(double) frequency;
+            interval = 1/(double) frequency;
 #ifdef DEBUG
-			printf("interval = %lf\n", interval);
-			#endif
+            printf("interval = %lf\n", interval);
+#endif
             break;
         case 's':
             packet_size = optarg;
@@ -195,9 +195,9 @@ int main (int argc, char **argv) {
             fprintf(stderr, "%s: Error - No such option: `%c'\n\n", CLI_PROGRAM, optopt);
             usage();
             break;
-		default:
-		    usage();
-			break;
+        default:
+            usage();
+            break;
         }
     }
 
@@ -260,9 +260,9 @@ int main (int argc, char **argv) {
     printf("Connected to CCND, return code: %d\n", res);
 #endif
 
-	printf("------------------------------------------------------------\n");
-	printf("Client asking for /cbr/%s\n", packet_size);
-	printf("------------------------------------------------------------\n");
+    printf("------------------------------------------------------------\n");
+    printf("Client asking for /cbr/%s\n", packet_size);
+    printf("------------------------------------------------------------\n");
 
     struct ccn_closure *incoming;
     incoming = calloc(1, sizeof(*incoming));
