@@ -27,7 +27,6 @@ int construct_trace_response(struct ccn *h, struct ccn_charbuf *data,
     //upcall for further handling
 
     char *mymessage;
-    char *tmp_mymessage;
 
 
     //copy the incoming interest name in ccn charbuf
@@ -56,11 +55,10 @@ int construct_trace_response(struct ccn *h, struct ccn_charbuf *data,
     sscanf(reply_size_str+1, "%d", &requested_size_int);
     int i =0;
 
-
     mymessage = (char *) malloc (sizeof(char) * requested_size_int + 1);
 
     //find how many bytes to fill
-    int sign_overhead = 385;
+    int sign_overhead = 391;
     int bytes_to_fill = requested_size_int - sign_overhead;
 
     //if bytes to fill < 0, (if data size asked less than 385 bytes)
@@ -74,7 +72,7 @@ int construct_trace_response(struct ccn *h, struct ccn_charbuf *data,
 
     mymessage[i] = '\0';
     res = ccn_sign_content(h, data, name, &sp, 	mymessage, bytes_to_fill);
-    printf("data length %d %d %d", data->length, bytes_to_fill, strlen(mymessage));
+//    printf("data length %d %d %d", data->length, bytes_to_fill, strlen(mymessage));
 
     if(res == -1) {
         fprintf(stderr, "Can not sign content\n");
@@ -119,11 +117,18 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         break;
 
 
-    case CCN_UPCALL_INTEREST:
+    case CCN_UPCALL_INTEREST: {
         //received matching interest
         //get the interest name from incoming packet
 
+        struct ccn_charbuf *name = ccn_charbuf_create();
+        res = ccn_charbuf_append(name, info->interest_ccnb + info->pi->offset[CCN_PI_B_Name],
+                                 info->pi->offset[CCN_PI_E_Name] - info->pi->offset[CCN_PI_B_Name]);
 
+
+        struct ccn_charbuf *uri = ccn_charbuf_create();
+        ccn_uri_append(uri, name->buf, name->length, 1);
+        printf("Incoming interest %s\n", ccn_charbuf_as_string(uri));
 
         construct_trace_response(info->h, data, info->interest_ccnb, info->pi);
         printf("Sending binary content of length: %Zu \n", data->length);
@@ -131,7 +136,7 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         if(res < 0)
             printf("Error sending data\n");
         break;
-
+    }
     default:
         break;
     }
@@ -163,6 +168,7 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+
     //create prefix we are interested in, register in FIB
     struct ccn_charbuf *prefix = ccn_charbuf_create();
 
@@ -187,6 +193,7 @@ int main(int argc, char **argv) {
 
     //listen infinitely
     res = ccn_run(ccn, -1);
+
 
     //cleanup
     ccn_destroy(&ccn);

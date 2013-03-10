@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -g -Wall -Wpointer-arith -Wreturn-type -Wstrict-prototypes
-LIBS = -lccn -lcrypto
+LIBS = -lccn -lcrypto -lrt
 
 PROGRAM_CL = client
 PROGRAM_SR = server

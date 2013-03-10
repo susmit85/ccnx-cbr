@@ -10,11 +10,33 @@
 #include <ccn/keystore.h>
 #include <ccn/signing.h>
 #include <sys/time.h>
+#include <signal.h>
 
 #define CLI_PROGRAM "cbr_client"
-#define DEBUG
 
 char *URI;
+double interval;
+int num_interests_sent, total_recv_size;
+int frequency;
+char *packet_size = NULL;
+
+
+void sig_handler(int s){
+#ifdef DEBUG
+      printf("Caught signal %d\n",s);
+	  #endif
+
+//[ ID] Interval       Transfer     Bandwidth
+//[  3]  0.0-10.0 sec  39.4 GBytes  33.8 Gbits/sec
+
+	printf("\n------------------------------------------------------------\n");
+	printf("Client asked for /cbr/%s\n", packet_size);
+	printf("------------------------------------------------------------\n");
+	printf ("Frequency \t Interests sent \t Received Bytes\n");
+	printf("%d \t\t %d \t\t\t %d\n", frequency, num_interests_sent, total_recv_size);
+	  exit(1); 
+  }
+
 
 enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
                                       enum ccn_upcall_kind kind, struct ccn_upcall_info *info) {
@@ -23,6 +45,7 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
     int res = 0;
     const unsigned char *ptr;
     size_t length;
+    char *new_URI;
 
 
     //switch on type of event
@@ -32,40 +55,57 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         return CCN_UPCALL_RESULT_OK;
 
     case CCN_UPCALL_CONTENT:
+		num_interests_sent++;
+
         //get the content from packet
         res = ccn_content_get_value(info->content_ccnb, info->pco->offset[CCN_PCO_E], info->pco, &ptr, &length);
         if (res < 0) {
             printf("Can not get value from content. res: %d", res);
             exit(1);
         }
-        printf("Size received asd %d\n", info->pco->offset[CCN_PCO_E]);
-//        printf("Content %s\n", ptr);
-        while(1) {
-            char *new_URI;
+        printf("Content of %d bytes received \n", info->pco->offset[CCN_PCO_E]);
+		total_recv_size +=  info->pco->offset[CCN_PCO_E];
 
-            char *rand_str = strrchr(URI, '/');
-            *rand_str  = '\0';
-            new_URI = (char *) calloc(strlen(URI) + 20 + 1, sizeof(char)); //assuming rand() length 20
-            sprintf(new_URI, "%s/%d", URI, rand());
-            printf("URI %s \n", new_URI);
-            URI = new_URI;
+        struct timeval start_time, end_time;
+        gettimeofday(&start_time,0);
 
-            struct ccn_charbuf *ccnb = ccn_charbuf_create();
-            res = ccn_name_from_uri(ccnb, URI);
-            struct ccn_closure *incoming;
-            incoming = calloc(1, sizeof(*incoming));
-            incoming->p = incoming_interest;
+        //swap random
+        char *rand_str = strrchr(URI, '/');
+        *rand_str  = '\0';
+        new_URI = (char *) calloc(strlen(URI) + 20 + 1, sizeof(char)); //assuming rand() length 20
+        sprintf(new_URI, "%s/%d", URI, rand());
+#ifdef DEBUG			
+        printf("URI %s \n", new_URI);
+		#endif
+        URI = new_URI;
 
-            res = ccn_express_interest(info->h, ccnb, incoming, NULL);
-            res = ccn_content_get_value(info->content_ccnb, info->pco->offset[CCN_PCO_E], info->pco, &ptr, &length);
-            printf("Size received asd %d\n", info->pco->offset[CCN_PCO_E]);
+        //define closure and new charbuf
+        struct ccn_closure *cl;
+        cl = calloc(1, sizeof(*cl));
+        cl->p = &incoming_interest;
 
-            sleep(1);
+        struct ccn_charbuf *ccnb_new = ccn_charbuf_create();
+        res = ccn_name_from_uri(ccnb_new, URI);
 
-        }
+        //reexpress interest, get value and size
+        res = ccn_express_interest(info->h, ccnb_new, cl, NULL);
+//        res = ccn_content_get_value(ccnb_new, info->pco->offset[CCN_PCO_E], info->pco, &ptr, &length);
 
+        gettimeofday(&end_time,0);
+        int delta_usec = (end_time.tv_sec-start_time.tv_sec) * 1000 * 1000 + (end_time.tv_usec-start_time.tv_usec);
+
+
+        int wait_time  = interval * 1000 * 1000 - delta_usec;
+#ifdef DEBUG
+        printf("Interval %lf, delta %d wait time %d\n", interval*1000*1000, delta_usec, wait_time);
+#endif
+        //sleep
+        printf("Time for previous call is %d ms, waiting for %d ms\n", delta_usec, wait_time);
+        usleep(wait_time);
 
         break;
+
+
 
     case CCN_UPCALL_INTEREST_TIMED_OUT:
         printf("Interest timed out\n");
@@ -74,13 +114,13 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
     case CCN_UPCALL_CONTENT_UNVERIFIED:
         fprintf(stderr, "%s: Error - Could not verify content\n\n", CLI_PROGRAM);
         return CCN_UPCALL_RESULT_ERR;
+        //return CCN_UPCALL_RESULT_REEXPRESS;
 
     case CCN_UPCALL_CONTENT_BAD:
         fprintf(stderr, "%s: Error - Bad content\n\n", CLI_PROGRAM);
         return CCN_UPCALL_RESULT_ERR;
 
     case CCN_UPCALL_INTEREST:
-        //don't care about interests, will do nothing
         break;
 
     default:
@@ -88,7 +128,7 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         return CCN_UPCALL_RESULT_ERR;
 
     }
-
+//    free(new_URI);
     return(0);
 }
 
@@ -96,18 +136,16 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
 
 void usage(void) {
     ///prints the usage and exits
-    printf("Usage: %s -t TIME -s REPLY PACKET SIZE(Bytes) [-h] \n\n", CLI_PROGRAM);
-    printf("  -t TIME        time interval between consecutive interests, default 1 sec\n");
+    printf("Usage: %s -f FREQ -s REPLY PACKET SIZE(Bytes) [-h] \n\n", CLI_PROGRAM);
+    printf("  -f FREQ        Frequency of interests, defaults to 1 per sec\n");
     printf("  -s SIZE        size of the reply packet in bytes\n");
     printf("  -h             print this help and exit\n");
     exit(1);
 }
 
 int main (int argc, char **argv) {
-    char *interval_cmd = NULL;
-    double interval;
+    char *freq_cmd = NULL;
     int opt;
-    char *packet_size = NULL;
     int packet_size_int = 0;
 
 
@@ -119,18 +157,26 @@ int main (int argc, char **argv) {
         usage();
     }
 
-    while((opt = getopt(argc, argv, "h:t:s:")) != -1) {
+    while((opt = getopt(argc, argv, "h:f:s:")) != -1) {
+		if(strrchr(optarg, '.') != NULL){
+			printf("Error: Arguments must be intergers\n");
+			usage();
+		}
         switch(opt) {
         case 'h':
             usage();
             break;
-        case 't':
-            interval_cmd = optarg;
-            res = sscanf(interval_cmd, "%lf", &interval);
+        case 'f':
+            freq_cmd = optarg;
+            res = sscanf(freq_cmd, "%d", &frequency);
             if(res == 0) {
-                fprintf(stderr, "%s: Error - Could not convert timeout value to int %s\n\n", CLI_PROGRAM, interval_cmd);
+                fprintf(stderr, "%s: Error - Invalid frequency %s\n\n", CLI_PROGRAM, freq_cmd);
                 usage();
             }
+			interval = 1/(double) frequency;
+#ifdef DEBUG
+			printf("interval = %lf\n", interval);
+			#endif
             break;
         case 's':
             packet_size = optarg;
@@ -149,6 +195,9 @@ int main (int argc, char **argv) {
             fprintf(stderr, "%s: Error - No such option: `%c'\n\n", CLI_PROGRAM, optopt);
             usage();
             break;
+		default:
+		    usage();
+			break;
         }
     }
 
@@ -211,50 +260,19 @@ int main (int argc, char **argv) {
     printf("Connected to CCND, return code: %d\n", res);
 #endif
 
+	printf("------------------------------------------------------------\n");
+	printf("Client asking for /cbr/%s\n", packet_size);
+	printf("------------------------------------------------------------\n");
 
     struct ccn_closure *incoming;
     incoming = calloc(1, sizeof(*incoming));
     incoming->p = incoming_interest;
 
-    /*    while(1)
-        {
-        //get time
-
-
-        int milisec = 100; // length of time to sleep, in miliseconds
-        struct timespec req = {0};
-
-
-
-        struct timeval tv;
-        long start_time, end_time, delta;
-
-        gettimeofday(&tv, NULL);
-        start_time = (uint)tv.tv_msec * 1000;   */
     res = ccn_express_interest(ccn, ccnb, incoming, NULL);
-    //get time
-
-    /* gettimeofday(&tv, NULL);
-     end_time =  (uint)tv.tv_usec * 1000;
-     if (res == -1)
-     {
-         fprintf(stderr, "Could not express interest for %s\n", URI);
-         exit(1);
-     }
-
-     printf("Expresses interest\n");
-
-
-     //calculate delta
-     delta = start_time - end_time;
-     printf("Delta %u\n", delta);
-     req.tv_sec = 0;
-     req.tv_nsec = milisec * 1000000L;
-     nanosleep(&req, (struct timespec *)NULL);
-     nanosleep((struct timespec[]){{0, delta}}, NULL);
-     }*/
 
     //run for timeout miliseconds
+    signal (SIGINT,sig_handler);
+
     res = ccn_run(ccn, -1);
     if (res < 0) {
         fprintf(stderr, "ccn_run error\n");
@@ -262,7 +280,7 @@ int main (int argc, char **argv) {
     }
 
 
-    //there is a memory leak for incoming, figure a way to free ccn_closure
+
     ccn_charbuf_destroy(&ccnb);
     ccn_destroy(&ccn);
     exit(0);
