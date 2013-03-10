@@ -43,6 +43,7 @@ void sig_handler(int s) {
     printf("Caught signal %d\n",s);
 #endif
 
+//from iperf
 //[ ID] Interval       Transfer     Bandwidth
 //[  3]  0.0-10.0 sec  39.4 GBytes  33.8 Gbits/sec
 
@@ -82,9 +83,6 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         printf("Content of %d bytes received \n", info->pco->offset[CCN_PCO_E]);
         total_recv_size +=  info->pco->offset[CCN_PCO_E];
 
-        struct timeval start_time, end_time;
-        gettimeofday(&start_time,0);
-
         //swap random
         char *rand_str = strrchr(URI, '/');
         *rand_str  = '\0';
@@ -103,19 +101,17 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         struct ccn_charbuf *ccnb_new = ccn_charbuf_create();
         res = ccn_name_from_uri(ccnb_new, URI);
 
-        //reexpress interest, get value and size
+        //start timer, reexpress interest, stop timer
+        struct timeval start_time, end_time;
+        gettimeofday(&start_time,0);
         res = ccn_express_interest(info->h, ccnb_new, cl, NULL);
-
         gettimeofday(&end_time,0);
+        
+        //sleep for the rest of the interval
         int delta_usec = (end_time.tv_sec-start_time.tv_sec) * 1000 * 1000 + (end_time.tv_usec-start_time.tv_usec);
         int wait_time  = interval * 1000 * 1000 - delta_usec;
-#ifdef DEBUG
-        printf("Interval %lf, delta %d wait time %d\n", interval*1000*1000, delta_usec, wait_time);
-#endif
-        //sleep
         printf("Time for previous call is %d ms, waiting for %d ms\n", delta_usec, wait_time);
         usleep(wait_time);
-
         break;
 
     case CCN_UPCALL_INTEREST_TIMED_OUT:
@@ -275,7 +271,7 @@ int main (int argc, char **argv) {
     incoming = calloc(1, sizeof(*incoming));
     incoming->p = incoming_interest;
 
-    //run for timeout miliseconds
+    //catch ctrl+c
     signal (SIGINT,sig_handler);
 
     //express interest
@@ -290,5 +286,3 @@ int main (int argc, char **argv) {
     ccn_destroy(&ccn);
     return(0);
 }
-
-
