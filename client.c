@@ -64,7 +64,6 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
     size_t length;
     char *new_URI;
 
-
     //switch on type of event
     switch (kind) {
     case CCN_UPCALL_FINAL:
@@ -106,12 +105,9 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
 
         //reexpress interest, get value and size
         res = ccn_express_interest(info->h, ccnb_new, cl, NULL);
-//        res = ccn_content_get_value(ccnb_new, info->pco->offset[CCN_PCO_E], info->pco, &ptr, &length);
 
         gettimeofday(&end_time,0);
         int delta_usec = (end_time.tv_sec-start_time.tv_sec) * 1000 * 1000 + (end_time.tv_usec-start_time.tv_usec);
-
-
         int wait_time  = interval * 1000 * 1000 - delta_usec;
 #ifdef DEBUG
         printf("Interval %lf, delta %d wait time %d\n", interval*1000*1000, delta_usec, wait_time);
@@ -121,8 +117,6 @@ enum ccn_upcall_res incoming_interest(struct ccn_closure *selfp,
         usleep(wait_time);
 
         break;
-
-
 
     case CCN_UPCALL_INTEREST_TIMED_OUT:
         printf("Interest timed out\n");
@@ -222,8 +216,6 @@ int main (int argc, char **argv) {
     printf("interval %lf secs, packet size in bytes %s\n", interval, packet_size);
 #endif
 
-
-
     //create ccn URI
     // /cbr/1500
     char *base_uri = "/cbr";
@@ -236,7 +228,6 @@ int main (int argc, char **argv) {
     }
 
     //append random
-
     srand ((unsigned int)time (NULL)*getpid());
     snprintf(URI, uri_length, "%s/%s/%d", base_uri, packet_size, rand());
 
@@ -257,7 +248,6 @@ int main (int argc, char **argv) {
         fprintf(stderr, "Failed to assign name to interest");
         exit(1);
     }
-
 
     //create the ccn handle
     struct ccn *ccn = ccn_create();
@@ -285,23 +275,19 @@ int main (int argc, char **argv) {
     incoming = calloc(1, sizeof(*incoming));
     incoming->p = incoming_interest;
 
-    res = ccn_express_interest(ccn, ccnb, incoming, NULL);
-
     //run for timeout miliseconds
     signal (SIGINT,sig_handler);
 
+    //express interest
+    res = ccn_express_interest(ccn, ccnb, incoming, NULL);
     res = ccn_run(ccn, -1);
     if (res < 0) {
         fprintf(stderr, "ccn_run error\n");
         exit(1);
     }
 
-
-
     ccn_charbuf_destroy(&ccnb);
     ccn_destroy(&ccn);
-    exit(0);
-
     return(0);
 }
 
